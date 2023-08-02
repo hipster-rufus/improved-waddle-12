@@ -152,15 +152,17 @@ function addRolePrompt(deptMenu) {
 
 function viewEmps() {
     connection.query(
-        `SELECT * FROM employees
+        `SELECT 
+            employees.id, 
+            employees.first_name, 
+            employees.last_name, 
+            roles.title, 
+            departments.department,
+            roles.salary,
+            employees.manager_id
+        FROM employees
         INNER JOIN roles ON employees.role_id = roles.id
         INNER JOIN departments ON roles.department_id = departments.id`,
-        // `SELECT departments.id, departments.department 
-        // FROM employees 
-        // JOIN roles 
-        // ON employees.role_id = roles.id 
-        // JOIN departments 
-        // ON departments.id = roles.department_id`,
         function(err, res) {
             if (err) throw err;
             console.table(res);
