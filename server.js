@@ -50,9 +50,9 @@ function startPrompt() {
                 break;
             case "Add a role": addRole();
                 break;
-            case "Add an employee": addEmp();
+            case "Add an employee": addMapMgrs();
                 break;
-            case "Update an employee role": updateEmpRole();
+            case "Update an employee role": updateMapEmps();
                 break;   
             case "Exit": connection.end();
                 break;
@@ -105,16 +105,11 @@ function viewRoles() {
 
 function addRole() {
     connection.query(
-        `SELECT departments.id, departments.department 
-        FROM employees 
-        JOIN roles 
-        ON employees.role_id = roles.id 
-        JOIN departments 
-        ON departments.id = roles.department_id`,
+        `SELECT * FROM departments`,
         function(err, res) {
             if (err) throw err;
             const deptMenu = res.map(({id, department}) => ({
-                department: department,
+                name: `${department}`,
                 value: id
             }));
 
@@ -157,14 +152,15 @@ function addRolePrompt(deptMenu) {
 
 function viewEmps() {
     connection.query(
-        `SELECT employees.id, 
-            employees.first_name, 
-            employees.last_name, 
-            roles.title, 
-            roles.salary, 
-            employees.manager_id
-        FROM employees
-        INNER JOIN roles ON employees.role_id = roles.id`,
+        `SELECT * FROM employees
+        INNER JOIN roles ON employees.role_id = roles.id
+        INNER JOIN departments ON roles.department_id = departments.id`,
+        // `SELECT departments.id, departments.department 
+        // FROM employees 
+        // JOIN roles 
+        // ON employees.role_id = roles.id 
+        // JOIN departments 
+        // ON departments.id = roles.department_id`,
         function(err, res) {
             if (err) throw err;
             console.table(res);
@@ -172,7 +168,23 @@ function viewEmps() {
     })
 }
 
-function addEmp() {
+
+function addMapMgrs() {
+    connection.query(
+        `SELECT * FROM employees`,
+        function(err, res) {
+            if (err) throw err;
+            const mgrMenu = res.map(({id, first_name, last_name}) => ({
+                value: id,
+                name: `${first_name} ${last_name}`
+            }))
+
+            addMapRoles(mgrMenu);
+        }
+    )
+}
+
+function addMapRoles(mgrMenu) {
     connection.query(
         `SELECT roles.id, roles.title, roles.salary
         FROM roles`,
@@ -184,20 +196,8 @@ function addEmp() {
                 salary: `${salary}`
             }));
 
-            addEmpPrompt(roleMenu);
+            addEmpPrompt(roleMenu, mgrMenu);
         }
-
-        // `SELECT employees.id, employees.first_name, employees.last_name
-        // FROM employees`,
-        // function(err, res) {
-        //     if (err) throw err;
-        //     const mgrMenu = res.map(({id, first_name, last_name}) => ({
-        //         value: id,
-        //         name: `${first_name} ${last_name}`,
-        //     }));
-
-        //     addEmpPrompt(mgrMenu);
-        // }
     )
 }
 
@@ -219,16 +219,16 @@ function addEmpPrompt(roleMenu, mgrMenu) {
             message: "Select a role for this employee:",
             choices: roleMenu
         },
-        // {
-        //     type: "list",
-        //     name: "manager_id",
-        //     message: "Select a role for this employee:",
-        //     choices: mgrMenu
-        // }
+        {
+            type: "list",
+            name: "manager_id",
+            message: "Select a manager for this employee:",
+            choices: mgrMenu
+        },
     ])
     .then(function(res) {
         connection.query(
-            `INSERT INTO employees (first_name, last_name, role_id) VALUES ("${res.first_name}", "${res.last_name}", ${res.role_id})`,
+            `INSERT INTO employees (first_name, last_name, role_id, manager_id) VALUES ("${res.first_name}", "${res.last_name}", ${res.role_id}, ${res.manager_id})`,
             function(err) {
                 if (err) throw err;
                 console.log('Your new employee has been successfully added!');
@@ -238,56 +238,61 @@ function addEmpPrompt(roleMenu, mgrMenu) {
     })
 }
 
-function updateEmpRole(){
+function updateMapEmps(){
     connection.query(
         `SELECT * FROM employees`,
         function(err, res) {
             if (err) throw err;
             const empMenu = res.map(({id, first_name, last_name}) => ({
                 value: id,
-                name: `${first_name} ${last_name}`,
-            })
-        )
+                name: `${first_name} ${last_name}`
+            }))
+
+            updateMapRoles(empMenu)
+        }
+    )
+}
+
+function updateMapRoles(empMenu){
+    connection.query(
+        `SELECT * FROM roles`,
+        function(err, res) {
+            if (err) throw err;
+            const roleMenu = res.map(({id, title, salary}) => ({
+                value: id,
+                name: `${title}`,
+                salary: `${salary}`
+            }))
+            updateEmpRole(empMenu, roleMenu);
+        }
+    )
+}
+
+function updateEmpRole(empMenu, roleMenu){
         inquirer.prompt([
             {
                 type: "list",
                 name: "employee_id",
                 message: "Select an employee to update their role:",
                 choices: empMenu
+            },
+            {
+                type: "list",
+                name: "role_id",
+                message: "Select a new role:",
+                choices: roleMenu
             }
         ])
         .then(function(res) {
             connection.query(
-                `SELECT roles.title FROM roles`,
-                function(err, res) {
+                `UPDATE employees
+                SET role_id = ${res.role_id}
+                WHERE id = ${res.employee_id}`,
+                function(err) {
                     if (err) throw err;
-                    const roleMenu = res.map(({id, title}) => ({
-                        value: id,
-                        name: title
-                    })
-                )
-                inquirer.prompt([
-                    {
-                        type: "list",
-                        name: "role_id",
-                        message: "Select a new role:",
-                        choices: roleMenu
-                    }
-                ])
-                .then(function(res) {
-                    connection.query(
-                        `SELECT * FROM employees
-                        UPDATE employees
-                        SET role_id = ${res.role_id}
-                        WHERE employee_id = ${res.employees.id}`,
-                        function(err) {
-                            if (err) throw err;
-                            console.log('Your employee`s roll has been successfully updated!');
-                            startPrompt();
-                        }
-                    )
+                    console.log('Your employee`s roll has been successfully updated!');
+                    startPrompt();
                 })
-            })
-        })
-    }
-)}
+        }
+    )
+}
